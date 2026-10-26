@@ -1,4 +1,4 @@
-/* lab.js v1.0 \u2014 Matematyka 1 Lab: Desmos-style plotter (+ domain strip) and sequence-limit lab.
+/* lab.js v1.1 \u2014 Matematyka 1 Lab: Desmos-style plotter (+ domain strip) and sequence-limit lab.
    Usage (after a <div>):
      <div data-lab="plot" data-expr="arcsin(x/2)/(x-1)"></div>
      <div data-lab="seq"  data-config='{"expr":"(1+a/n)^n","params":{"a":{"min":-3,"max":5,"step":0.5,"val":2}}}'></div>
@@ -12,13 +12,13 @@
     kcss: 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css'
   };
   var C = { red: '#c74440', blue: '#2d70b3', green: '#388c46', purple: '#6042a6', orange: '#fa7e19', grid: '#e3e3e3', axis: '#444', ink: '#222' };
-  var CSS = '.lab{background:#fff;color:#222;border:1px solid #ccc;border-radius:8px;padding:10px;font:14px/1.4 system-ui,sans-serif;max-width:100%;box-sizing:border-box;margin:6px 0}' +
+  var CSS = '.lab{background:#fff!important;color:#222!important;border:1px solid #ccc;border-radius:8px;padding:10px;font:14px/1.4 system-ui,sans-serif;max-width:100%;box-sizing:border-box;margin:6px 0}' +
     '.lab *{box-sizing:border-box}.lab .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0;color:#222}' +
-    '.lab input[type=text]{flex:1;min-width:140px;padding:6px 8px;border:1px solid #bbb;border-radius:6px;background:#fff;color:#222;font:14px ui-monospace,monospace}' +
-    '.lab button{padding:4px 10px;border:1px solid #bbb;border-radius:6px;background:#f4f4f4;color:#222;cursor:pointer;font:13px system-ui}.lab button:hover{background:#e6e6e6}' +
+    '.lab input[type=text]{flex:1;min-width:140px;padding:6px 8px;border:1px solid #bbb!important;border-radius:6px;background:#fff!important;color:#222!important;-webkit-text-fill-color:#222!important;font:14px ui-monospace,monospace}.lab input::placeholder{color:#888!important;-webkit-text-fill-color:#888!important}' +
+    '.lab button{padding:4px 10px;border:1px solid #bbb;border-radius:6px;background:#f4f4f4!important;color:#222!important;-webkit-text-fill-color:#222!important;opacity:1!important;cursor:pointer;font:13px system-ui}.lab button:hover{background:#e6e6e6!important}.lab span,.lab td,.lab th,.lab label,.lab sub,.lab i{color:#222!important}' +
     '.lab canvas{display:block;width:100%;touch-action:none;background:#fff;border-radius:4px}' +
     '.lab .tex{min-height:30px;color:#222;overflow-x:auto;overflow-y:hidden}.lab .katex{color:#222}' +
-    '.lab .err{color:#b00020;font-size:12px;min-height:14px}.lab .hov{font:12px ui-monospace,monospace;color:#444;min-height:16px}' +
+    '.lab .err{color:#b00020!important;font-size:12px;min-height:14px}.lab .hov{font:12px ui-monospace,monospace;color:#444;min-height:16px}' +
     '.lab table{border-collapse:collapse;width:100%;font:12px ui-monospace,monospace;color:#222}' +
     '.lab td,.lab th{border-bottom:1px solid #ddd;padding:3px 6px;text-align:right;color:#222}' +
     '.lab input[type=range]{flex:1;min-width:120px}.lab .iv{padding:6px 8px;background:#f5f8fc;border-radius:6px;color:#222;display:none}' +
@@ -64,6 +64,18 @@
   function mkEv(code, extra) {
     return function (x, sc) {
       try { var s = { x: x }; if (sc) for (var k in sc) s[k] = sc[k]; var v = code.evaluate(s); return (typeof v === 'number' && isFinite(v)) ? v : null; } catch (e) { return null; }
+    };
+  }
+  function mkEvAst(src) { // every operator/function node must give a finite real number (so 1.7/(-Infinity) is NOT silently -0)
+    var root = g.math.parse(src), subs = [];
+    root.traverse(function (n) { if (n.type === 'OperatorNode' || n.type === 'FunctionNode') subs.push(n.compile()); });
+    var full = root.compile();
+    return function (x) {
+      try {
+        var sc = { x: x }, i, v;
+        for (i = 0; i < subs.length; i++) { v = subs[i].evaluate(sc); if (typeof v !== 'number' || !isFinite(v)) return null; }
+        v = full.evaluate(sc); return (typeof v === 'number' && isFinite(v)) ? v : null;
+      } catch (e) { return null; }
     };
   }
   function setupCanvas(cv, W, H) { var d = window.devicePixelRatio || 1; cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv.style.height = H + 'px'; var c = cv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); return c; }
@@ -135,10 +147,10 @@
       var inp = root.querySelector('input'), cv = root.querySelector('canvas'), texEl = root.querySelector('.tex'), errEl = root.querySelector('.err'), hov = root.querySelector('.hov'), ivEl = root.querySelector('.iv');
       var X0 = (cfg.x || [-6, 6]).slice(), Y0 = (cfg.y || [-4, 4]).slice(), v = { x0: X0[0], x1: X0[1], y0: Y0[0], y1: Y0[1] };
       var H = cfg.height || 340, STRIP = cfg.domain === false ? 0 : 36, W = 600, code = null, ev = null, dom = [], extras = [], showIv = false, ctx;
-      function compileExtras() { extras = (cfg.extra || []).map(function (e, i) { try { return { ev: mkEv(g.math.compile(norm(e.expr))), color: e.color || [C.blue, C.green, C.purple, C.orange][i % 4] }; } catch (er) { return null; } }).filter(Boolean); }
+      function compileExtras() { extras = (cfg.extra || []).map(function (e, i) { try { return { ev: mkEvAst(norm(e.expr)), color: e.color || [C.blue, C.green, C.purple, C.orange][i % 4] }; } catch (er) { return null; } }).filter(Boolean); }
       compileExtras();
       function setExpr(s) {
-        try { code = g.math.compile(norm(s)); ev = mkEv(code); errEl.textContent = ''; kt(texEl, 'f(x)=' + tex(s)); }
+        try { ev = mkEvAst(norm(s)); code = true; errEl.textContent = ''; kt(texEl, 'f(x)=' + tex(s)); }
         catch (e) { code = null; ev = null; errEl.textContent = 'Nie rozumiem wyra\u017cenia: ' + e.message; texEl.textContent = ''; }
         draw();
       }
@@ -169,9 +181,9 @@
         ctx.strokeStyle = C.axis; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay); ctx.moveTo(ax, 0); ctx.lineTo(ax, H); ctx.stroke();
         ctx.fillStyle = '#555'; ctx.font = '11px system-ui,sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        for (t = Math.ceil(v.x0 / sx) * sx; t <= v.x1; t += sx) { if (Math.abs(t) < sx / 1e3) continue; ctx.fillText(fmt(+t.toFixed(10)), X(t), Math.min(H - 13, ay + 3)); }
+        for (t = Math.ceil(v.x0 / sx) * sx; t <= v.x1; t += sx) { if (Math.abs(t) < sx / 1e3 || X(t) < 14 || X(t) > W - 14) continue; ctx.fillText(fmt(+t.toFixed(10)), X(t), Math.min(H - 13, ay + 3)); }
         ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-        for (t = Math.ceil(v.y0 / sy) * sy; t <= v.y1; t += sy) { if (Math.abs(t) < sy / 1e3) continue; ctx.fillText(fmt(+t.toFixed(10)), Math.max(30, ax - 4), Y(t)); }
+        for (t = Math.ceil(v.y0 / sy) * sy; t <= v.y1; t += sy) { if (Math.abs(t) < sy / 1e3 || Y(t) < 9 || Y(t) > H - 9) continue; ctx.fillText(fmt(+t.toFixed(10)), Math.max(30, ax - 4), Y(t)); }
         extras.forEach(function (e) { curve(e.ev, e.color, 2.4); });
         if (ev) curve(ev, C.red, 2.6);
         if (STRIP) {
@@ -299,6 +311,6 @@
       (d.dataset.lab === 'seq' ? seq : plot)(d, cfg).catch(function (e) { d.textContent = 'lab.js: ' + e.message; });
     });
   }
-  g.Lab = { version: '1.0', plot: plot, seq: seq, auto: auto, norm: norm, tex: function (s) { return init().then(function () { return tex(s); }); } };
+  g.Lab = { version: '1.1', plot: plot, seq: seq, auto: auto, norm: norm, tex: function (s) { return init().then(function () { return tex(s); }); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', auto); else auto();
 })(window);
