@@ -1,4 +1,4 @@
-/* lab.js v1.2 \u2014 Matematyka 1 Lab: Desmos-style plotter (+ domain strip) and sequence-limit lab.
+/* lab.js v1.3 \u2014 Matematyka 1 Lab: Desmos-style plotter (+ domain strip) and sequence-limit lab.
    Usage (after a <div>):
      <div data-lab="plot" data-exprs='["arcsin(x/2)/(x-1)","sqrt(6-x)/(x-1)"]'></div>
      <div data-lab="seq"  data-config='{"expr":"(1+a/n)^n","params":{"a":{"min":-3,"max":5,"step":0.5,"val":2}}}'></div>
@@ -26,6 +26,9 @@
 
 
   var CSS2 = '.lab.lab-pl{padding:0!important;overflow:hidden}.lab .lp{display:flex;align-items:stretch;background:#fff}' +
+'.lab .lp-rs{width:7px;flex:none;cursor:col-resize;background:#e8e8e8;border-right:1px solid #cfcfcf;touch-action:none}.lab .lp-rs:hover{background:#b9cde6}.lab .lp.narrow .lp-rs{display:none}.lab .hidden{display:none!important}' +
+    '.lab .lp-hs{height:12px;cursor:ns-resize;background:#efefef;border-top:1px solid #cfcfcf;position:relative;touch-action:none}.lab .lp-hs:after{content:"";position:absolute;left:50%;top:4px;width:40px;margin-left:-20px;height:3px;border-radius:2px;background:#aaa}.lab .lp-hs:hover{background:#dbe6f3}' +
+    '.lab .lp-show{position:absolute;left:10px;top:10px;width:36px;height:36px;border:1px solid #bbb;border-radius:4px;background:#f5f5f5!important;box-shadow:0 1px 3px rgba(0,0,0,.25);padding:0!important;align-items:center;justify-content:center;cursor:pointer}' +
     '.lab .lp-left{width:34%;min-width:210px;max-width:340px;border-right:1px solid #cfcfcf;background:#fff;display:flex;flex-direction:column}' +
     '.lab .lp.narrow{flex-direction:column}.lab .lp.narrow .lp-left{width:100%;max-width:none;border-right:0;border-bottom:1px solid #cfcfcf;max-height:260px}' +
     '.lab .lp-head{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#efefef;border-bottom:1px solid #cfcfcf}' +
@@ -38,7 +41,7 @@
     '.lab .lp-body input.lp-in{width:100%;min-width:0;flex:none;border:0!important;outline:0;background:transparent!important;font:15px ui-monospace,monospace;padding:2px 0;color:#222!important;-webkit-text-fill-color:#222!important}' +
     '.lab .lp-err{color:#b00020!important;font-size:11px}.lab .lp-x{border:0!important;background:transparent!important;color:#999!important;font-size:20px;padding:0 10px;cursor:pointer;align-self:flex-start;margin-top:10px}.lab .lp-x:hover{color:#444!important}' +
     '.lab .lp-foot{padding:8px 10px;border-top:1px solid #cfcfcf;background:#fafafa;overflow-x:auto}' +
-    '.lab .lp-right{flex:1;min-width:0;position:relative}.lab .lp-hov{position:absolute;left:8px;top:6px;font:12px ui-monospace,monospace;color:#444!important;background:rgba(255,255,255,.85);padding:0 4px;pointer-events:none}' +
+    '.lab .lp-right{flex:1;min-width:0;position:relative}.lab .lp-hov{position:absolute;left:8px;bottom:46px;font:12px ui-monospace,monospace;color:#444!important;background:rgba(255,255,255,.85);padding:0 4px;pointer-events:none}' +
     '.lab .lp-zoom{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;border:1px solid #bbb;border-radius:4px;background:#f5f5f5;box-shadow:0 1px 3px rgba(0,0,0,.25);overflow:hidden}' +
     '.lab .lp-zoom button{width:36px;height:36px;border:0!important;border-bottom:1px solid #ddd!important;border-radius:0!important;background:#f5f5f5!important;font-size:22px;line-height:1;padding:0!important;display:flex;align-items:center;justify-content:center}.lab .lp-zoom button:last-child{border-bottom:0!important}';
 
@@ -164,14 +167,14 @@
       (cfg.extra || []).forEach(function (e) { list.push(e.expr || e); });
       if (!list.length || list[list.length - 1] !== '') list.push('');
       var ICO = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 8 8 2l6 6M4 7v7h8V7" fill="none" stroke="#555" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
-      mk(root, '<div class="lp"><div class="lp-left"><div class="lp-head"><button data-a="add" title="Dodaj wyra\u017cenie" style="font-size:18px;line-height:1;padding:2px 10px">+</button><span class="tag">Wyra\u017cenia</span><button data-a="iv" style="margin-left:auto">Zapis dziedziny</button></div><div class="lp-list"></div><div class="lp-foot" style="display:none"></div></div>' +
-        '<div class="lp-right"><canvas></canvas><div class="lp-hov"></div><div class="lp-zoom"><button data-a="reset" title="Widok pocz\u0105tkowy">' + ICO + '</button></div><div class="lp-zoom" style="top:56px"><button data-a="in" title="Przybli\u017c">+</button><button data-a="out" title="Oddal">\u2212</button></div></div></div>');
+      mk(root, '<div class="lp"><div class="lp-left"><div class="lp-head"><button data-a="add" title="Dodaj wyra\u017cenie" style="font-size:18px;line-height:1;padding:2px 10px">+</button><span class="tag">Wyra\u017cenia</span><button data-a="iv" style="margin-left:auto">Zapis dziedziny</button><button data-a="hide" title="Schowaj list\u0119" style="font-size:16px;line-height:1;padding:2px 9px">\u00ab</button></div><div class="lp-list"></div><div class="lp-foot" style="display:none"></div></div><div class="lp-rs" title="Przeci\u0105gnij, by zmieni\u0107 szeroko\u015b\u0107 listy"></div>' +
+        '<div class="lp-right"><canvas></canvas><div class="lp-hov"></div><button class="lp-show" data-a="show" title="Poka\u017c list\u0119" style="display:none"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12" stroke="#555" stroke-width="2" stroke-linecap="round"/></svg></button><div class="lp-zoom"><button data-a="reset" title="Widok pocz\u0105tkowy">' + ICO + '</button></div><div class="lp-zoom" style="top:56px"><button data-a="in" title="Przybli\u017c">+</button><button data-a="out" title="Oddal">\u2212</button></div></div></div><div class="lp-hs" title="Przeci\u0105gnij, by zmieni\u0107 wysoko\u015b\u0107"></div>');
       root.classList.add('lab-pl');
       var lp = root.querySelector('.lp'), left = root.querySelector('.lp-left'), listEl = root.querySelector('.lp-list'), foot = root.querySelector('.lp-foot'),
-        right = root.querySelector('.lp-right'), cv = root.querySelector('canvas'), hov = root.querySelector('.lp-hov');
+        right = root.querySelector('.lp-right'), cv = root.querySelector('canvas'), hov = root.querySelector('.lp-hov'), rs = root.querySelector('.lp-rs'), hs = root.querySelector('.lp-hs'), showBtn = root.querySelector('.lp-show'), hidden = false;
       var X0 = (cfg.x || [-6, 6]).slice(), Y0 = (cfg.y || [-4, 4]).slice();
       var v = { x0: X0[0], x1: X0[1], y0: Y0[0], y1: Y0[1] };
-      var H = cfg.height || 400, STRIP = cfg.domain === false ? 0 : 40, W = 600, ctx, dom = [], showIv = false, colorIdx = 0, rows = [], sel = null;
+      var H = cfg.height || 520, STRIP = cfg.domain === false ? 0 : 40, W = 600, ctx, dom = [], showIv = false, colorIdx = 0, rows = [], sel = null;
       function newRow(s) { var r = { src: s, color: COLS[colorIdx++ % COLS.length], vis: true, ev: null, tex: '', err: '' }; comp(r); return r; }
       function comp(r) {
         var s = cleanSrc(r.src).trim();
@@ -280,6 +283,7 @@
           if (a === 'in') { zoomAt(W / 2, H / 2, .7); draw(); } else if (a === 'out') { zoomAt(W / 2, H / 2, 1 / .7); draw(); }
           else if (a === 'reset') { v = { x0: X0[0], x1: X0[1], y0: Y0[0], y1: Y0[1] }; draw(); }
           else if (a === 'add') { var nr = newRow(''); rows.push(nr); renderList(); listEl.querySelectorAll('input')[rows.length - 1].focus(); }
+          else if (a === 'hide' || a === 'show') { hidden = (a === 'hide'); left.classList.toggle('hidden', hidden); rs.classList.toggle('hidden', hidden); showBtn.style.display = hidden ? 'flex' : 'none'; draw(); }
           else if (a === 'iv') { showIv = !showIv; b.textContent = showIv ? 'Ukryj zapis' : 'Zapis dziedziny'; draw(); }
         };
       });
@@ -313,6 +317,14 @@
           hov.textContent = 'x = ' + fmt(x) + '   y = ' + (y === null ? '\u2014' : fmt(y));
         }
       });
+      function dragger(el, onmove) {
+        el.addEventListener('pointerdown', function (e) { e.preventDefault(); el.setPointerCapture(e.pointerId); var sx = e.clientX, sy = e.clientY, w0 = left.getBoundingClientRect().width, h0 = H;
+          function mv(ev) { onmove(ev.clientX - sx, ev.clientY - sy, w0, h0); draw(); }
+          function end() { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); }
+          el.addEventListener('pointermove', mv); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); });
+      }
+      dragger(rs, function (dx, dy, w0) { var w = Math.max(150, Math.min(root.clientWidth - 220, w0 + dx)); left.style.width = w + 'px'; left.style.maxWidth = 'none'; left.style.minWidth = '150px'; });
+      dragger(hs, function (dx, dy, w0, h0) { H = Math.max(260, Math.min(1400, h0 + dy)); });
       cv.addEventListener('pointerleave', function () { hov.textContent = ''; });
       if (g.ResizeObserver) new ResizeObserver(function () { if (Math.abs((right.clientWidth || 400) - W) > 2 || (root.clientWidth < 560) !== lp.classList.contains('narrow')) draw(); }).observe(root);
       draw();
@@ -400,6 +412,6 @@
       (d.dataset.lab === 'seq' ? seq : plot)(d, cfg).catch(function (e) { d.textContent = 'lab.js: ' + e.message; });
     });
   }
-  g.Lab = { version: '1.2', plot: plot, seq: seq, auto: auto, norm: norm, tex: function (s) { return init().then(function () { return tex(s); }); } };
+  g.Lab = { version: '1.3', plot: plot, seq: seq, auto: auto, norm: norm, tex: function (s) { return init().then(function () { return tex(s); }); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', auto); else auto();
 })(window);
