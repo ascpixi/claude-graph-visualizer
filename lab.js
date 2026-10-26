@@ -1,6 +1,6 @@
-/* lab.js v1.1 \u2014 Matematyka 1 Lab: Desmos-style plotter (+ domain strip) and sequence-limit lab.
+/* lab.js v1.2 \u2014 Matematyka 1 Lab: Desmos-style plotter (+ domain strip) and sequence-limit lab.
    Usage (after a <div>):
-     <div data-lab="plot" data-expr="arcsin(x/2)/(x-1)"></div>
+     <div data-lab="plot" data-exprs='["arcsin(x/2)/(x-1)","sqrt(6-x)/(x-1)"]'></div>
      <div data-lab="seq"  data-config='{"expr":"(1+a/n)^n","params":{"a":{"min":-3,"max":5,"step":0.5,"val":2}}}'></div>
      <script src="https://cdn.jsdelivr.net/gh/USER/REPO@v1.0/lab.js"></script>
    or from JS: Lab.plot(el, {expr, x:[-6,6], y:[-4,4], extra:[{expr,color}]}), Lab.seq(el, {expr, params, nmax, table}) */
@@ -24,13 +24,31 @@
     '.lab input[type=range]{flex:1;min-width:120px}.lab .iv{padding:6px 8px;background:#f5f8fc;border-radius:6px;color:#222;display:none}' +
     '.lab .tag{font-size:12px;color:#555}';
 
+
+  var CSS2 = '.lab.lab-pl{padding:0!important;overflow:hidden}.lab .lp{display:flex;align-items:stretch;background:#fff}' +
+    '.lab .lp-left{width:34%;min-width:210px;max-width:340px;border-right:1px solid #cfcfcf;background:#fff;display:flex;flex-direction:column}' +
+    '.lab .lp.narrow{flex-direction:column}.lab .lp.narrow .lp-left{width:100%;max-width:none;border-right:0;border-bottom:1px solid #cfcfcf;max-height:260px}' +
+    '.lab .lp-head{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#efefef;border-bottom:1px solid #cfcfcf}' +
+    '.lab .lp-list{overflow:auto;flex:1}.lab .lp-row{display:flex;align-items:stretch;border-bottom:1px solid #d9d9d9;min-height:58px;background:#fff}' +
+    '.lab .lp-num{width:46px;flex:none;background:#efefef;border-right:1px solid #d9d9d9;position:relative}' +
+    '.lab .lp-row.sel .lp-num{background:#2d70b3}.lab .lp-n{position:absolute;left:5px;top:3px;font:10px system-ui;color:#777!important}.lab .lp-row.sel .lp-n{color:#fff!important}' +
+    '.lab .lp-ico{position:absolute;left:9px;top:16px;width:28px;height:28px;border-radius:50%!important;padding:0!important;cursor:pointer}' +
+    '.lab .lp-body{flex:1;min-width:0;padding:8px 6px 8px 10px;display:flex;flex-direction:column;justify-content:center}' +
+    '.lab .lp-disp{font-size:17px;cursor:text;overflow-x:auto;overflow-y:hidden;min-height:26px;color:#222!important}' +
+    '.lab .lp-body input.lp-in{width:100%;min-width:0;flex:none;border:0!important;outline:0;background:transparent!important;font:15px ui-monospace,monospace;padding:2px 0;color:#222!important;-webkit-text-fill-color:#222!important}' +
+    '.lab .lp-err{color:#b00020!important;font-size:11px}.lab .lp-x{border:0!important;background:transparent!important;color:#999!important;font-size:20px;padding:0 10px;cursor:pointer;align-self:flex-start;margin-top:10px}.lab .lp-x:hover{color:#444!important}' +
+    '.lab .lp-foot{padding:8px 10px;border-top:1px solid #cfcfcf;background:#fafafa;overflow-x:auto}' +
+    '.lab .lp-right{flex:1;min-width:0;position:relative}.lab .lp-hov{position:absolute;left:8px;top:6px;font:12px ui-monospace,monospace;color:#444!important;background:rgba(255,255,255,.85);padding:0 4px;pointer-events:none}' +
+    '.lab .lp-zoom{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;border:1px solid #bbb;border-radius:4px;background:#f5f5f5;box-shadow:0 1px 3px rgba(0,0,0,.25);overflow:hidden}' +
+    '.lab .lp-zoom button{width:36px;height:36px;border:0!important;border-bottom:1px solid #ddd!important;border-radius:0!important;background:#f5f5f5!important;font-size:22px;line-height:1;padding:0!important;display:flex;align-items:center;justify-content:center}.lab .lp-zoom button:last-child{border-bottom:0!important}';
+
   /* ---------- loading ---------- */
   function loadJS(u) { return new Promise(function (r, j) { var s = document.createElement('script'); s.src = u; s.onload = r; s.onerror = function () { j(new Error('load ' + u)); }; document.head.appendChild(s); }); }
   function loadCSS(u) { return new Promise(function (r) { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = u; l.onload = r; l.onerror = r; document.head.appendChild(l); }); }
   var ready;
   function init() {
     if (ready) return ready;
-    if (!document.getElementById('lab-css')) { var st = document.createElement('style'); st.id = 'lab-css'; st.textContent = CSS; document.head.appendChild(st); }
+    if (!document.getElementById('lab-css')) { var st = document.createElement('style'); st.id = 'lab-css'; st.textContent = CSS + CSS2; document.head.appendChild(st); }
     ready = Promise.all([g.math ? 0 : loadJS(CDN.math), g.katex ? 0 : loadJS(CDN.kjs), g.katex ? 0 : loadCSS(CDN.kcss)]);
     return ready;
   }
@@ -135,25 +153,66 @@
     }).join('\\cup ');
   }
 
-  /* ---------- PLOT ---------- */
-  var PRE = ['arcsin(x/2)/(x-1)', 'sqrt(6-x)/(x-1)', 'ln(5-x)/sqrt(x+2)', 'tg(x)', '1/x', 'sqrt(x^2-4)'];
+  /* ---------- PLOT (Desmos-style: expression list on the left, graph on the right) ---------- */
+  var COLS = ['#c74440', '#2d70b3', '#388c46', '#6042a6', '#000000', '#fa7e19'];
+  function cleanSrc(s) { return String(s).replace(/^\s*(y|f\s*\(\s*x\s*\))\s*=\s*/i, ''); }
   function plot(root, cfg) {
     root = el_(root); cfg = cfg || {};
     return init().then(function () {
-      var presets = cfg.presets || PRE;
-      mk(root, '<div class="row"><input type="text" spellcheck="false" autocomplete="off"><button data-a="in">+</button><button data-a="out">\u2212</button><button data-a="reset">reset</button><button data-a="iv">Poka\u017c zapis przedzia\u0142owy</button></div>' +
-        (presets.length ? '<div class="row" data-r="pre"></div>' : '') +
-        '<div class="tex"></div><div class="err"></div><canvas></canvas><div class="hov"></div><div class="iv"></div>');
-      var inp = root.querySelector('input'), cv = root.querySelector('canvas'), texEl = root.querySelector('.tex'), errEl = root.querySelector('.err'), hov = root.querySelector('.hov'), ivEl = root.querySelector('.iv');
-      var X0 = (cfg.x || [-6, 6]).slice(), Y0 = (cfg.y || [-4, 4]).slice(), v = { x0: X0[0], x1: X0[1], y0: Y0[0], y1: Y0[1] };
-      var H = cfg.height || 340, STRIP = cfg.domain === false ? 0 : 36, W = 600, code = null, ev = null, dom = [], extras = [], showIv = false, ctx;
-      function compileExtras() { extras = (cfg.extra || []).map(function (e, i) { try { return { ev: mkEvAst(norm(e.expr)), color: e.color || [C.blue, C.green, C.purple, C.orange][i % 4] }; } catch (er) { return null; } }).filter(Boolean); }
-      compileExtras();
-      function setExpr(s) {
-        try { ev = mkEvAst(norm(s)); code = true; errEl.textContent = ''; kt(texEl, 'f(x)=' + tex(s)); }
-        catch (e) { code = null; ev = null; errEl.textContent = 'Nie rozumiem wyra\u017cenia: ' + e.message; texEl.textContent = ''; }
-        draw();
+      var list = (cfg.exprs || []).slice();
+      if (cfg.expr) list.unshift(cfg.expr);
+      (cfg.extra || []).forEach(function (e) { list.push(e.expr || e); });
+      if (!list.length || list[list.length - 1] !== '') list.push('');
+      var ICO = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 8 8 2l6 6M4 7v7h8V7" fill="none" stroke="#555" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+      mk(root, '<div class="lp"><div class="lp-left"><div class="lp-head"><button data-a="add" title="Dodaj wyra\u017cenie" style="font-size:18px;line-height:1;padding:2px 10px">+</button><span class="tag">Wyra\u017cenia</span><button data-a="iv" style="margin-left:auto">Zapis dziedziny</button></div><div class="lp-list"></div><div class="lp-foot" style="display:none"></div></div>' +
+        '<div class="lp-right"><canvas></canvas><div class="lp-hov"></div><div class="lp-zoom"><button data-a="reset" title="Widok pocz\u0105tkowy">' + ICO + '</button></div><div class="lp-zoom" style="top:56px"><button data-a="in" title="Przybli\u017c">+</button><button data-a="out" title="Oddal">\u2212</button></div></div></div>');
+      root.classList.add('lab-pl');
+      var lp = root.querySelector('.lp'), left = root.querySelector('.lp-left'), listEl = root.querySelector('.lp-list'), foot = root.querySelector('.lp-foot'),
+        right = root.querySelector('.lp-right'), cv = root.querySelector('canvas'), hov = root.querySelector('.lp-hov');
+      var X0 = (cfg.x || [-6, 6]).slice(), Y0 = (cfg.y || [-4, 4]).slice();
+      var v = { x0: X0[0], x1: X0[1], y0: Y0[0], y1: Y0[1] };
+      var H = cfg.height || 400, STRIP = cfg.domain === false ? 0 : 40, W = 600, ctx, dom = [], showIv = false, colorIdx = 0, rows = [], sel = null;
+      function newRow(s) { var r = { src: s, color: COLS[colorIdx++ % COLS.length], vis: true, ev: null, tex: '', err: '' }; comp(r); return r; }
+      function comp(r) {
+        var s = cleanSrc(r.src).trim();
+        if (!s) { r.ev = null; r.tex = ''; r.err = ''; return; }
+        try { r.ev = mkEvAst(norm(s)); r.tex = tex(s); r.err = ''; } catch (e) { r.ev = null; r.tex = ''; r.err = 'Nie rozumiem wyra\u017cenia'; }
       }
+      rows = list.map(newRow); sel = rows.filter(function (r) { return r.ev; })[0] || rows[0];
+      function active() { return (sel && sel.ev) ? sel : (rows.filter(function (r) { return r.ev && r.vis; })[0] || null); }
+      function buildRow(r, i) {
+        var d = document.createElement('div'); d.className = 'lp-row' + (r === sel ? ' sel' : '');
+        d.innerHTML = '<div class="lp-num"><span class="lp-n">' + (i + 1) + '</span><button class="lp-ico"></button></div><div class="lp-body"><div class="lp-disp"></div><input type="text" class="lp-in" spellcheck="false" autocomplete="off" autocapitalize="off"><div class="lp-err"></div></div><button class="lp-x" title="Usu\u0144">\u00d7</button>';
+        var ico = d.querySelector('.lp-ico'), disp = d.querySelector('.lp-disp'), inp = d.querySelector('input'), err = d.querySelector('.lp-err');
+        inp.value = r.src;
+        function paintIco() { ico.style.setProperty('background', r.vis ? r.color : '#fff', 'important'); ico.style.border = '3px solid ' + r.color; ico.style.opacity = r.vis ? 1 : .6; }
+        function show() {
+          err.textContent = r.err;
+          if (r.tex && document.activeElement !== inp) { disp.style.display = 'block'; kt(disp, r.tex); inp.style.display = 'none'; }
+          else { disp.style.display = 'none'; inp.style.display = 'block'; }
+        }
+        paintIco(); show();
+        disp.onclick = function () { inp.style.display = 'block'; disp.style.display = 'none'; inp.focus(); };
+        inp.onfocus = function () { sel = r; listEl.querySelectorAll('.lp-row').forEach(function (e) { e.classList.remove('sel'); }); d.classList.add('sel'); draw(); };
+        inp.onblur = function () { show(); };
+        inp.oninput = function () {
+          r.src = inp.value; comp(r); err.textContent = (r.err && r.src.trim()) ? r.err : '';
+          if (r === rows[rows.length - 1] && r.src.trim()) { var nr = newRow(''); rows.push(nr); listEl.appendChild(buildRow(nr, rows.length - 1)); }
+          draw();
+        };
+        inp.onkeydown = function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); var nxt = rows[rows.indexOf(r) + 1]; if (!nxt) { nxt = newRow(''); rows.push(nxt); } renderList(); var ins = listEl.querySelectorAll('input'); ins[rows.indexOf(nxt)].focus(); }
+        };
+        ico.onclick = function () { r.vis = !r.vis; paintIco(); draw(); };
+        d.querySelector('.lp-x').onclick = function () {
+          if (rows.length <= 1) { r.src = ''; comp(r); inp.value = ''; show(); draw(); return; }
+          rows.splice(rows.indexOf(r), 1); if (sel === r) sel = rows.filter(function (q) { return q.ev; })[0] || rows[0];
+          if (rows[rows.length - 1].src.trim()) rows.push(newRow('')); renderList(); draw();
+        };
+        return d;
+      }
+      function renderList() { listEl.innerHTML = ''; rows.forEach(function (r, i) { listEl.appendChild(buildRow(r, i)); }); }
+      renderList();
       function X(x) { return (x - v.x0) / (v.x1 - v.x0) * W; }
       function Y(y) { return (v.y1 - y) / (v.y1 - v.y0) * H; }
       function curve(f, color, wd) {
@@ -168,67 +227,96 @@
         }
         ctx.stroke();
       }
+      function grid(step, color, wd) {
+        var t; ctx.strokeStyle = color; ctx.lineWidth = wd; ctx.beginPath();
+        for (t = Math.ceil(v.x0 / step) * step; t <= v.x1; t += step) { ctx.moveTo(Math.round(X(t)) + .5, 0); ctx.lineTo(Math.round(X(t)) + .5, H); }
+        for (t = Math.ceil(v.y0 / step) * step; t <= v.y1; t += step) { ctx.moveTo(0, Math.round(Y(t)) + .5); ctx.lineTo(W, Math.round(Y(t)) + .5); }
+        ctx.stroke();
+      }
       function draw() {
-        W = Math.max(280, (cfg.width || root.clientWidth - 22));
+        lp.classList.toggle('narrow', root.clientWidth < 560);
+        var narrow = lp.classList.contains('narrow');
+        left.style.height = narrow ? '' : (H + STRIP) + 'px';
+        W = Math.max(240, right.clientWidth || 400);
+        if (cfg.square !== false) { var ys = (v.x1 - v.x0) * H / W, cy = (v.y0 + v.y1) / 2; v.y0 = cy - ys / 2; v.y1 = cy + ys / 2; }
         ctx = setupCanvas(cv, W, H + STRIP);
         ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H + STRIP);
-        var sx = nice(v.x1 - v.x0, W / 70), sy = nice(v.y1 - v.y0, H / 50), t;
-        ctx.lineWidth = 1; ctx.strokeStyle = C.grid; ctx.beginPath();
-        for (t = Math.ceil(v.x0 / sx) * sx; t <= v.x1; t += sx) { ctx.moveTo(Math.round(X(t)) + .5, 0); ctx.lineTo(Math.round(X(t)) + .5, H); }
-        for (t = Math.ceil(v.y0 / sy) * sy; t <= v.y1; t += sy) { ctx.moveTo(0, Math.round(Y(t)) + .5); ctx.lineTo(W, Math.round(Y(t)) + .5); }
-        ctx.stroke();
+        var s = nice(v.x1 - v.x0, W / 90), t;
+        var sMinor = s / 5, sMajor = s;
+        if ((v.x1 - v.x0) / sMinor < W / 6) grid(sMinor, '#ececec', 1);
+        grid(sMajor, '#c8c8c8', 1);
         var ax = Math.max(0, Math.min(W, X(0))), ay = Math.max(0, Math.min(H, Y(0)));
-        ctx.strokeStyle = C.axis; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay); ctx.moveTo(ax, 0); ctx.lineTo(ax, H); ctx.stroke();
-        ctx.fillStyle = '#555'; ctx.font = '11px system-ui,sans-serif';
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay); ctx.moveTo(ax, 0); ctx.lineTo(ax, H); ctx.stroke();
+        ctx.fillStyle = '#444'; ctx.font = '12px system-ui,sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        for (t = Math.ceil(v.x0 / sx) * sx; t <= v.x1; t += sx) { if (Math.abs(t) < sx / 1e3 || X(t) < 14 || X(t) > W - 14) continue; ctx.fillText(fmt(+t.toFixed(10)), X(t), Math.min(H - 13, ay + 3)); }
+        for (t = Math.ceil(v.x0 / s) * s; t <= v.x1; t += s) { if (Math.abs(t) < s / 1e3 || X(t) < 14 || X(t) > W - 14) continue; ctx.fillText(fmt(+t.toFixed(10)), X(t), Math.min(H - 15, ay + 4)); }
         ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-        for (t = Math.ceil(v.y0 / sy) * sy; t <= v.y1; t += sy) { if (Math.abs(t) < sy / 1e3 || Y(t) < 9 || Y(t) > H - 9) continue; ctx.fillText(fmt(+t.toFixed(10)), Math.max(30, ax - 4), Y(t)); }
-        extras.forEach(function (e) { curve(e.ev, e.color, 2.4); });
-        if (ev) curve(ev, C.red, 2.6);
+        for (t = Math.ceil(v.y0 / s) * s; t <= v.y1; t += s) { if (Math.abs(t) < s / 1e3 || Y(t) < 9 || Y(t) > H - 9) continue; ctx.fillText(fmt(+t.toFixed(10)), Math.max(30, ax - 5), Y(t)); }
+        rows.forEach(function (r) { if (r.ev && r.vis) curve(r.ev, r.color, 2.6); });
+        var a = active();
         if (STRIP) {
           ctx.fillStyle = '#f5f8fc'; ctx.fillRect(0, H, W, STRIP); ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, H + .5); ctx.lineTo(W, H + .5); ctx.stroke();
-          dom = ev ? domain(ev, v.x0, v.x1, Math.round(2 * W)) : [];
-          var yy = H + 19; ctx.fillStyle = '#2d70b3'; ctx.font = 'italic 12px serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('D', 6, H + 8);
+          dom = a ? domain(a.ev, v.x0, v.x1, Math.round(2 * W)) : [];
+          var yy = H + 24, col = a ? a.color : C.blue; ctx.fillStyle = '#555'; ctx.font = 'italic 13px serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('D', 7, H + 9);
           dom.forEach(function (d) {
-            var xa = X(d.a), xb = X(d.b); ctx.strokeStyle = C.blue; ctx.lineWidth = 4; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(xa, yy); ctx.lineTo(xb, yy); ctx.stroke();
+            var xa = X(d.a), xb = X(d.b); ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(xa, yy); ctx.lineTo(xb, yy); ctx.stroke();
             [[xa, d.ea, d.ca], [xb, d.eb, d.cb]].forEach(function (p) {
               if (p[1]) return;
-              ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(45,112,179,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p[0], yy); ctx.lineTo(p[0], 0); ctx.stroke(); ctx.setLineDash([]);
-              ctx.beginPath(); ctx.arc(p[0], yy, 5, 0, 7); ctx.fillStyle = p[2] ? C.blue : '#fff'; ctx.fill(); ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.stroke();
+              ctx.setLineDash([3, 3]); ctx.strokeStyle = col; ctx.globalAlpha = .45; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p[0], yy); ctx.lineTo(p[0], 0); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+              ctx.beginPath(); ctx.arc(p[0], yy, 5, 0, 7); ctx.fillStyle = p[2] ? col : '#fff'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
             });
           });
-          if (showIv) { ivEl.style.display = 'block'; kt(ivEl, 'D=' + ivTex(dom) + '\\quad\\text{(w oknie } x\\in[' + fmt(v.x0) + ',' + fmt(v.x1) + ']\\text{)}'); } else ivEl.style.display = 'none';
         }
+        if (showIv) { foot.style.display = 'block'; kt(foot, a ? 'D=' + ivTex(dom) + '\\ \\ \\text{(w oknie } x\\in[' + fmt(v.x0) + ',' + fmt(v.x1) + ']\\text{)}' : '\\text{wpisz wyra\u017cenie}'); } else foot.style.display = 'none';
       }
-      function zoom(f) { var cx = (v.x0 + v.x1) / 2, cy = (v.y0 + v.y1) / 2, hx = (v.x1 - v.x0) / 2 * f, hy = (v.y1 - v.y0) / 2 * f; v.x0 = cx - hx; v.x1 = cx + hx; v.y0 = cy - hy; v.y1 = cy + hy; draw(); }
+      function zoomAt(px, py, f) {
+        var xm = v.x0 + px / W * (v.x1 - v.x0), ym = v.y1 - py / H * (v.y1 - v.y0), sp = (v.x1 - v.x0) * f;
+        if (sp < 1e-6 || sp > 1e9) return;
+        v.x0 = xm - (xm - v.x0) * f; v.x1 = xm + (v.x1 - xm) * f; v.y0 = ym - (ym - v.y0) * f; v.y1 = ym + (v.y1 - ym) * f;
+      }
       root.querySelectorAll('button[data-a]').forEach(function (b) {
         b.onclick = function () {
           var a = b.dataset.a;
-          if (a === 'in') zoom(.7); else if (a === 'out') zoom(1 / .7);
+          if (a === 'in') { zoomAt(W / 2, H / 2, .7); draw(); } else if (a === 'out') { zoomAt(W / 2, H / 2, 1 / .7); draw(); }
           else if (a === 'reset') { v = { x0: X0[0], x1: X0[1], y0: Y0[0], y1: Y0[1] }; draw(); }
-          else if (a === 'iv') { showIv = !showIv; b.textContent = showIv ? 'Ukryj zapis przedzia\u0142owy' : 'Poka\u017c zapis przedzia\u0142owy'; draw(); }
+          else if (a === 'add') { var nr = newRow(''); rows.push(nr); renderList(); listEl.querySelectorAll('input')[rows.length - 1].focus(); }
+          else if (a === 'iv') { showIv = !showIv; b.textContent = showIv ? 'Ukryj zapis' : 'Zapis dziedziny'; draw(); }
         };
       });
-      var pre = root.querySelector('[data-r=pre]');
-      if (pre) presets.forEach(function (p) { var b = document.createElement('button'); b.textContent = p; b.style.fontFamily = 'ui-monospace,monospace'; b.onclick = function () { inp.value = p; setExpr(p); }; pre.appendChild(b); });
-      inp.addEventListener('input', function () { setExpr(inp.value); });
-      var drag = null;
-      cv.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, v: Object.assign({}, v) }; cv.setPointerCapture(e.pointerId); });
-      cv.addEventListener('pointerup', function () { drag = null; });
+      /* touchpad: two-finger scroll and pinch zoom around the cursor; drag = pan */
+      cv.addEventListener('wheel', function (e) {
+        e.preventDefault(); var r = cv.getBoundingClientRect(), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+        zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(dy * (e.ctrlKey ? .012 : .003))); draw();
+      }, { passive: false });
+      var gs = 1;
+      cv.addEventListener('gesturestart', function (e) { e.preventDefault(); gs = 1; });
+      cv.addEventListener('gesturechange', function (e) { e.preventDefault(); var r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, gs / e.scale); gs = e.scale; draw(); });
+      var ptr = {}, last = null, pd = 0;
+      function np() { return Object.keys(ptr).length; }
+      cv.addEventListener('pointerdown', function (e) { ptr[e.pointerId] = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); last = [e.clientX, e.clientY]; if (np() === 2) { var k = Object.keys(ptr); pd = Math.hypot(ptr[k[0]][0] - ptr[k[1]][0], ptr[k[0]][1] - ptr[k[1]][1]); } });
+      function up(e) { delete ptr[e.pointerId]; var k = Object.keys(ptr); last = k.length ? ptr[k[0]].slice() : null; }
+      cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
       cv.addEventListener('pointermove', function (e) {
         var r = cv.getBoundingClientRect();
-        if (drag) {
-          var dx = (e.clientX - drag.x) / r.width * (drag.v.x1 - drag.v.x0), dy = (e.clientY - drag.y) / (r.height - STRIP) * (drag.v.y1 - drag.v.y0);
-          v.x0 = drag.v.x0 - dx; v.x1 = drag.v.x1 - dx; v.y0 = drag.v.y0 + dy; v.y1 = drag.v.y1 + dy; draw();
-        } else if (ev) {
-          var x = v.x0 + (e.clientX - r.left) / r.width * (v.x1 - v.x0), y = ev(x);
-          hov.textContent = 'x = ' + fmt(x) + '    f(x) = ' + (y === null ? '\u2014 (poza dziedzin\u0105)' : fmt(y));
+        if (ptr[e.pointerId]) {
+          ptr[e.pointerId] = [e.clientX, e.clientY];
+          if (np() === 2) {
+            var k = Object.keys(ptr), d = Math.hypot(ptr[k[0]][0] - ptr[k[1]][0], ptr[k[0]][1] - ptr[k[1]][1]);
+            if (pd > 0 && d > 0) { zoomAt((ptr[k[0]][0] + ptr[k[1]][0]) / 2 - r.left, (ptr[k[0]][1] + ptr[k[1]][1]) / 2 - r.top, pd / d); draw(); } pd = d;
+          } else if (np() === 1 && last) {
+            var kx = (v.x1 - v.x0) / W, ky = (v.y1 - v.y0) / H, dx = e.clientX - last[0], dy = e.clientY - last[1];
+            v.x0 -= dx * kx; v.x1 -= dx * kx; v.y0 += dy * ky; v.y1 += dy * ky; last = [e.clientX, e.clientY]; draw();
+          }
+        } else {
+          var a = active(); if (!a) { hov.textContent = ''; return; }
+          var x = v.x0 + (e.clientX - r.left) / r.width * (v.x1 - v.x0), y = a.ev(x);
+          hov.textContent = 'x = ' + fmt(x) + '   y = ' + (y === null ? '\u2014' : fmt(y));
         }
       });
-      if (g.ResizeObserver) new ResizeObserver(function () { if (Math.abs(root.clientWidth - 22 - W) > 2) draw(); }).observe(root);
-      var e0 = cfg.expr || presets[0] || 'x'; inp.value = e0; setExpr(e0);
-      return { setExpr: function (s) { inp.value = s; setExpr(s); }, domain: function () { return dom; } };
+      cv.addEventListener('pointerleave', function () { hov.textContent = ''; });
+      if (g.ResizeObserver) new ResizeObserver(function () { if (Math.abs((right.clientWidth || 400) - W) > 2 || (root.clientWidth < 560) !== lp.classList.contains('narrow')) draw(); }).observe(root);
+      draw();
+      return { domain: function () { return dom; }, rows: rows };
     });
   }
 
@@ -308,9 +396,10 @@
       if (d.dataset.labDone) return; d.dataset.labDone = '1';
       var cfg = {}; try { if (d.dataset.config) cfg = JSON.parse(d.dataset.config); } catch (e) { }
       if (d.dataset.expr) cfg.expr = d.dataset.expr;
+      try { if (d.dataset.exprs) cfg.exprs = JSON.parse(d.dataset.exprs); } catch (e) { }
       (d.dataset.lab === 'seq' ? seq : plot)(d, cfg).catch(function (e) { d.textContent = 'lab.js: ' + e.message; });
     });
   }
-  g.Lab = { version: '1.1', plot: plot, seq: seq, auto: auto, norm: norm, tex: function (s) { return init().then(function () { return tex(s); }); } };
+  g.Lab = { version: '1.2', plot: plot, seq: seq, auto: auto, norm: norm, tex: function (s) { return init().then(function () { return tex(s); }); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', auto); else auto();
 })(window);
